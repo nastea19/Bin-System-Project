@@ -37,7 +37,11 @@ variables
   serverRequests = << >>,
   serverResponses = << >>,
   \* Command for the truck
-  truckCommand = [command |-> "emptied", bin |-> 1];
+  truckCommand = [command |-> "emptied", bin |-> 1],
+  
+
+  \* Ghost variable: TRUE while a granted deposit is in progress
+  authorized = FALSE;
 
 define
 
@@ -81,6 +85,8 @@ TypeOK == /\ outerDoorOpen \in BOOLEAN
                /\ serverResponses[i].permission \in BOOLEAN
           /\ truckCommand.command \in TruckCommand
           /\ truckCommand.bin \in Bins
+          
+          /\ authorized \in BOOLEAN
 
 \* Check that message queues are not overflowing
 MessagesOK == /\ Len(scans) <= 1
@@ -107,20 +113,25 @@ CapacityNotExceeded == ~CapacityExceeded
 \*****************************
 \* Replace FALSE by your own formalisation of each property.
 
+Full == ~TrashFitsCapacity(MaxUserTrash)
+
+\* Safety properties
 \* The outer door can only be locked if it is closed.
-OuterDoorLocked == FALSE
+OuterDoorLocked == outerDoorLocked => ~outerDoorOpen
 \* The vertical ram is only used when the outer door is closed and locked.
-RamOuterDoor == FALSE
-\* Every time the trash bin is full, it is eventually not full anymore.
-TrashEmptied == FALSE
+RamOuterDoor == ramExtended => (~outerDoorOpen /\ outerDoorLocked)
 \* An unauthorized user cannot open the outer door.
-AuthorizedOpenOnly == FALSE
+AuthorizedOpenOnly == outerDoorOpen => authorized
+
+\* Liveness properties
+\* Every time the trash bin is full, it is eventually not full anymore.
+TrashEmptied == [](Full => <>(~Full))
 \* The user infinitely often has trash and infinitely often has no trash.
-UserTrash == FALSE
+UserTrash == []<>(userTrash > 0) /\ []<>(userTrash = 0)
 \* Every time the user has trash, they can deposit their trash.
-UserTrashDeposited == FALSE
+UserTrashDeposited == [](userTrash > 0 => <>(userTrash = 0))
 \* Every time the truck is requested for the trash bin, the truck has eventually emptied the bin.
-TruckEmpties == FALSE
+TruckEmpties == [](truckCommand.command = "request" => <>(truckCommand.command = "emptied"))
 
 end define;
 
@@ -705,3 +716,4 @@ Spec == Init /\ [][Next]_vars
 
 =============================================================================
 \* Modification History
+\* Last modified Thu Oct 08 16:20:44 CEST 2026 by nasteapopova
