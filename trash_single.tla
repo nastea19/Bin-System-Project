@@ -163,7 +163,7 @@ end macro
 \*****************************
 \* Process for a bin
 \*****************************
-process binProcess \in Bins
+fair process binProcess \in Bins
 begin
   BinWaitForCommand:
     while TRUE do
@@ -223,7 +223,7 @@ end process;
 \*****************************
 \* Process for a user
 \*****************************
-process userProcess \in Users
+fair process userProcess \in Users
 variables
   perm = [user |-> 0, bin |-> 0, granted |-> FALSE]
 begin
@@ -262,7 +262,7 @@ end process;
 \*****************************
 \* Process for a server
 \*****************************
-process serverProcess = Server
+fair process serverProcess = Server
 variables
   req = [user |-> 0]
 begin
@@ -282,12 +282,19 @@ end process;
 \*****************************
 \* DUMMY truck process type.
 \* Remodel it to react to requests and empty the trash bin!
-process truckProcess \in Trucks
-
+fair process truckProcess \in Trucks
 begin
-  TruckStart:
-    \* Implement behaviour
-    skip;
+  TruckWait:
+    while TRUE do
+      await truckCommand.command = "request";
+      truckCommand.command := "arrived";
+  TruckEmpty:
+      await binCommand.command = "finished";
+      binCommand := [command |-> "empty", open |-> FALSE];
+  TruckDone:
+      await binCommand.command = "finished";
+      truckCommand.command := "emptied";
+    end while;
 end process;
 
 
@@ -296,7 +303,7 @@ end process;
 \*****************************
 \* DUMMY main control process type.
 \* Remodel it to control the trash bin system and handle requests by users!
-process controlProcess = Control
+fair process controlProcess = Control
 variables 
     scan = [user |-> 0, bin |-> 0], 
     response = [user |-> 0, permission |-> FALSE],
@@ -344,7 +351,7 @@ end process;
 
 
 end algorithm; *)
-\* BEGIN TRANSLATION (chksum(pcal) = "64a7342a" /\ chksum(tla) = "e9c7bdd6")
+\* BEGIN TRANSLATION (chksum(pcal) = "3d7ec4ed" /\ chksum(tla) = "78b60f1d")
 VARIABLES outerDoorOpen, outerDoorLocked, trapDoorOpen, ramExtended, 
           trashInTop, trashCompressed, trashUncompressed, trashCapacity, 
           trapDestroyed, userTrash, binCommand, binSensor, scans, permissions, 
@@ -475,7 +482,7 @@ Init == (* Global variables *)
         /\ pc = [self \in ProcSet |-> CASE self \in Bins -> "BinWaitForCommand"
                                         [] self \in Users -> "UserNextIteration"
                                         [] self = Server -> "ServerNextIteration"
-                                        [] self \in Trucks -> "TruckStart"
+                                        [] self \in Trucks -> "TruckWait"
                                         [] self = Control -> "ControlNextIteration"]
 
 BinWaitForCommand(self) == /\ pc[self] = "BinWaitForCommand"
@@ -744,19 +751,45 @@ ServerAwaitRequest == /\ pc[Server] = "ServerAwaitRequest"
 
 serverProcess == ServerNextIteration \/ ServerAwaitRequest
 
-TruckStart(self) == /\ pc[self] = "TruckStart"
-                    /\ TRUE
-                    /\ pc' = [pc EXCEPT ![self] = "Done"]
+TruckWait(self) == /\ pc[self] = "TruckWait"
+                   /\ truckCommand.command = "request"
+                   /\ truckCommand' = [truckCommand EXCEPT !.command = "arrived"]
+                   /\ pc' = [pc EXCEPT ![self] = "TruckEmpty"]
+                   /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
+                                   trapDoorOpen, ramExtended, trashInTop, 
+                                   trashCompressed, trashUncompressed, 
+                                   trashCapacity, trapDestroyed, userTrash, 
+                                   binCommand, binSensor, scans, permissions, 
+                                   serverRequests, serverResponses, authorized, 
+                                   perm, req, scan, response, granted >>
+
+TruckEmpty(self) == /\ pc[self] = "TruckEmpty"
+                    /\ binCommand.command = "finished"
+                    /\ binCommand' = [command |-> "empty", open |-> FALSE]
+                    /\ pc' = [pc EXCEPT ![self] = "TruckDone"]
                     /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
                                     trapDoorOpen, ramExtended, trashInTop, 
                                     trashCompressed, trashUncompressed, 
                                     trashCapacity, trapDestroyed, userTrash, 
-                                    binCommand, binSensor, scans, permissions, 
+                                    binSensor, scans, permissions, 
                                     serverRequests, serverResponses, 
                                     truckCommand, authorized, perm, req, scan, 
                                     response, granted >>
 
-truckProcess(self) == TruckStart(self)
+TruckDone(self) == /\ pc[self] = "TruckDone"
+                   /\ binCommand.command = "finished"
+                   /\ truckCommand' = [truckCommand EXCEPT !.command = "emptied"]
+                   /\ pc' = [pc EXCEPT ![self] = "TruckWait"]
+                   /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
+                                   trapDoorOpen, ramExtended, trashInTop, 
+                                   trashCompressed, trashUncompressed, 
+                                   trashCapacity, trapDestroyed, userTrash, 
+                                   binCommand, binSensor, scans, permissions, 
+                                   serverRequests, serverResponses, authorized, 
+                                   perm, req, scan, response, granted >>
+
+truckProcess(self) == TruckWait(self) \/ TruckEmpty(self)
+                         \/ TruckDone(self)
 
 ControlNextIteration == /\ pc[Control] = "ControlNextIteration"
                         /\ pc' = [pc EXCEPT ![Control] = "ControlReadScan"]
@@ -858,7 +891,7 @@ ControlOpenTrap == /\ pc[Control] = "ControlOpenTrap"
 ControlExtendRam == /\ pc[Control] = "ControlExtendRam"
                     /\ binCommand.command = "finished"
                     /\ Assert(trapDoorOpen, 
-                              "Failure of assertion at line 331, column 13.")
+                              "Failure of assertion at line 338, column 13.")
                     /\ binCommand' = [command |-> "change_ram", open |-> TRUE]
                     /\ pc' = [pc EXCEPT ![Control] = "ControlRetractRam"]
                     /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
@@ -907,12 +940,17 @@ Next == serverProcess \/ controlProcess
            \/ (\E self \in Users: userProcess(self))
            \/ (\E self \in Trucks: truckProcess(self))
 
-Spec == Init /\ [][Next]_vars
+Spec == /\ Init /\ [][Next]_vars
+        /\ \A self \in Bins : WF_vars(binProcess(self))
+        /\ \A self \in Users : WF_vars(userProcess(self))
+        /\ WF_vars(serverProcess)
+        /\ \A self \in Trucks : WF_vars(truckProcess(self))
+        /\ WF_vars(controlProcess)
 
 \* END TRANSLATION 
 
 
 =============================================================================
 \* Modification History
+\* Last modified Tue Oct 13 23:52:45 CEST 2026 by nasteapopova
 \* Last modified Fri Oct 09 19:46:57 CEST 2026 by kreme
-\* Last modified Thu Oct 08 16:20:44 CEST 2026 by nasteapopova
