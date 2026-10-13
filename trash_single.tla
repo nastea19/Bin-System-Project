@@ -325,9 +325,10 @@ begin
     ControlUnlockDoor:
                 await binCommand.command = "finished";
                 binCommand := [command |-> "change_outer_lock", open |-> TRUE];
-                authorized := TRUE;
+                
     ControlGranted:
                 await binCommand.command = "finished";
+                authorized := TRUE;
                 write(permissions, [user |-> scan.user, bin |-> scan.bin, granted |-> TRUE]);
     ControlAwaitClosed:
                 await binSensor.sensor = "outer_door_closed" /\ binCommand.command = "finished";
@@ -361,7 +362,7 @@ end process;
 
 
 end algorithm; *)
-\* BEGIN TRANSLATION (chksum(pcal) = "d48c8b5e" /\ chksum(tla) = "4038b5dd")
+\* BEGIN TRANSLATION (chksum(pcal) = "63f24f52" /\ chksum(tla) = "6d217697")
 VARIABLES outerDoorOpen, outerDoorLocked, trapDoorOpen, ramExtended, 
           trashInTop, trashCompressed, trashUncompressed, trashCapacity, 
           trapDestroyed, userTrash, binCommand, binSensor, scans, permissions, 
@@ -860,7 +861,6 @@ ControlAwaitResponse == /\ pc[Control] = "ControlAwaitResponse"
 ControlUnlockDoor == /\ pc[Control] = "ControlUnlockDoor"
                      /\ binCommand.command = "finished"
                      /\ binCommand' = [command |-> "change_outer_lock", open |-> TRUE]
-                     /\ authorized' = TRUE
                      /\ pc' = [pc EXCEPT ![Control] = "ControlGranted"]
                      /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
                                      trapDoorOpen, ramExtended, trashInTop, 
@@ -868,11 +868,12 @@ ControlUnlockDoor == /\ pc[Control] = "ControlUnlockDoor"
                                      trashCapacity, trapDestroyed, userTrash, 
                                      binSensor, scans, permissions, 
                                      serverRequests, serverResponses, 
-                                     truckCommand, perm, req, scan, response, 
-                                     granted, truckRequested >>
+                                     truckCommand, authorized, perm, req, scan, 
+                                     response, granted, truckRequested >>
 
 ControlGranted == /\ pc[Control] = "ControlGranted"
                   /\ binCommand.command = "finished"
+                  /\ authorized' = TRUE
                   /\ permissions' = Append(permissions, ([user |-> scan.user, bin |-> scan.bin, granted |-> TRUE]))
                   /\ pc' = [pc EXCEPT ![Control] = "ControlAwaitClosed"]
                   /\ UNCHANGED << outerDoorOpen, outerDoorLocked, trapDoorOpen, 
@@ -880,9 +881,8 @@ ControlGranted == /\ pc[Control] = "ControlGranted"
                                   trashUncompressed, trashCapacity, 
                                   trapDestroyed, userTrash, binCommand, 
                                   binSensor, scans, serverRequests, 
-                                  serverResponses, truckCommand, authorized, 
-                                  perm, req, scan, response, granted, 
-                                  truckRequested >>
+                                  serverResponses, truckCommand, perm, req, 
+                                  scan, response, granted, truckRequested >>
 
 ControlAwaitClosed == /\ pc[Control] = "ControlAwaitClosed"
                       /\ binSensor.sensor = "outer_door_closed" /\ binCommand.command = "finished"
@@ -914,7 +914,7 @@ ControlOpenTrap == /\ pc[Control] = "ControlOpenTrap"
 ControlExtendRam == /\ pc[Control] = "ControlExtendRam"
                     /\ binCommand.command = "finished"
                     /\ Assert(trapDoorOpen, 
-                              "Failure of assertion at line 342, column 17.")
+                              "Failure of assertion at line 343, column 17.")
                     /\ binCommand' = [command |-> "change_ram", open |-> TRUE]
                     /\ pc' = [pc EXCEPT ![Control] = "ControlRetractRam"]
                     /\ UNCHANGED << outerDoorOpen, outerDoorLocked, 
@@ -993,5 +993,5 @@ Spec == /\ Init /\ [][Next]_vars
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Oct 13 23:56:20 CEST 2026 by nasteapopova
+\* Last modified Wed Oct 14 00:21:33 CEST 2026 by nasteapopova
 \* Last modified Fri Oct 09 19:46:57 CEST 2026 by kreme
