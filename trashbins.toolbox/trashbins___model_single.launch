@@ -5,7 +5,7 @@
     <stringAttribute key="distributedNetworkInterface" value="192.168.2.46"/>
     <intAttribute key="distributedNodesCount" value="1"/>
     <stringAttribute key="distributedTLC" value="off"/>
-    <intAttribute key="fpIndex" value="96"/>
+    <intAttribute key="fpIndex" value="0"/>
     <intAttribute key="maxHeapSize" value="25"/>
     <stringAttribute key="modelBehaviorInit" value=""/>
     <stringAttribute key="modelBehaviorNext" value=""/>
@@ -23,7 +23,7 @@
         <listEntry value="1OuterDoorLocked"/>
         <listEntry value="1RamOuterDoor"/>
         <listEntry value="1AuthorizedOpenOnly"/>
-        <listEntry value="1truckCommand.command /= &quot;request&quot;"/>
+        <listEntry value="0truckCommand.command /= &quot;request&quot;"/>
     </listAttribute>
     <listAttribute key="modelCorrectnessProperties">
         <listEntry value="1TrashEmptied"/>
